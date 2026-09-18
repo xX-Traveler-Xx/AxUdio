@@ -1,8 +1,11 @@
 #include "AxUdioCore.h"
 
 AnalysisData AxUdio_bxxitAnalysis::Analyze(const std::vector<float>& pcm, size_t fileSize) {
-    AnalysisData result{ 320, 0.0f, 0.0f };
-    if (pcm.empty()) return result;
+    AnalysisData result{ 320, 0.0f, 0.0f, 1 };
+    if (pcm.empty()) {
+        result.isPlaying = 0;
+        return result;
+    }
 
     float maxPeak = 0.0f;
     double sumSq = 0.0;
@@ -14,6 +17,7 @@ AnalysisData AxUdio_bxxitAnalysis::Analyze(const std::vector<float>& pcm, size_t
     }
 
     result.peakVolume = maxPeak;
-    result.rmsVolume = std::sqrt(sumSq / pcm.size());
+    result.rmsVolume = static_cast<float>(std::sqrt(sumSq / pcm.size()));
+    result.isPlaying = 1;
     return result;
 }

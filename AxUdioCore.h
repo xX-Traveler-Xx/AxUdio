@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
+#include <algorithm> // Обязательно для std::clamp и std::min/std::max
 
 #ifdef AXUDIO_EXPORTS
 #define AXUDIO_API __declspec(dllexport)

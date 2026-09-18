@@ -1,34 +1,64 @@
 #include "AxUdioCore.h"
-#include <vector>
-#include <algorithm>
 
-// Пример реализации внутреннего состояния
 struct AxUdioContext {
-    std::vector<unsigned char> data;
-    size_t position = 0;
-    AnalysisData analysis = { 320, 0.0f, 0.0f, 0 };
-    bool running = false;
+    AxUdio_SO so;
+    AxUdio_ZxZipl zipl;
+    AxUdio_Dek dek;
+    AxUdio_bxxitAnalysis bitrate;
+    AxUdio_audioxcard audioCard;
+
+    std::vector<float> finalPcm;
+    size_t cursor = 0;
+    AnalysisData currentAnalysis = { 320, 0.0f, 0.0f, 0 };
 };
 
 extern "C" {
+
+    // 1. Создание контекста движка
     AXUDIO_API void* AxUdio_Create() {
-        return new AxUdioContext();
+        return new (std::nothrow) AxUdioContext();
     }
 
+    // 2. Уничтожение контекста и очистка памяти
     AXUDIO_API void AxUdio_Destroy(void* instance) {
         if (instance) {
             delete static_cast<AxUdioContext*>(instance);
         }
     }
 
+    // 3. Получение текущих метрик анализа
+    AXUDIO_API AnalysisData AxUdio_GetAnalysis(void* instance) {
+        if (!instance) {
+            return AnalysisData{ 0, 0.0f, 0.0f, 0 };
+        }
+        auto ctx = static_cast<AxUdioContext*>(instance);
+        return ctx->currentAnalysis;
+    }
+
+    // 4. Открытие аудиопотока
     AXUDIO_API bool AxUdio_OpenStream(void* instance, const unsigned char* fileBytes, size_t size) {
         if (!instance || !fileBytes || size == 0) return false;
         auto ctx = static_cast<AxUdioContext*>(instance);
 
-        ctx->data.assign(fileBytes, fileBytes + size);
-        ctx->position = 0;
-        ctx->running = true;
-        ctx->analysis.isPlaying = 1;
+        // 1. RAM Загрузка
+        if (!ctx->so.LoadToRAM(fileBytes, size)) return false;
+
+        // 2. Распаковка
+        if (!ctx->zipl.DecompressStream(ctx->so.ramBuffer)) return false;
+
+        // 3. Дискретизация 44100 Hz
+        if (!ctx->dek.Process44100(ctx->zipl.pcmBuffer, 44100)) return false;
+
+        ctx->finalPcm = ctx->dek.resampledBuffer;
+        ctx->cursor = 0;
+
+        // Если вектор после обработки оказался пустым — возвращаем false
+        if (ctx->finalPcm.empty()) {
+            ctx->currentAnalysis.isPlaying = 0;
+            return false;
+        }
+
+        ctx->currentAnalysis.isPlaying = 1;
         return true;
     }
 
@@ -36,28 +66,30 @@ extern "C" {
         if (!instance) return false;
         auto ctx = static_cast<AxUdioContext*>(instance);
 
-        if (!ctx->running || ctx->position >= ctx->data.size()) {
-            ctx->analysis.isPlaying = 0;
-            ctx->running = false;
+        if (ctx->finalPcm.empty() || ctx->cursor >= ctx->finalPcm.size()) {
+            ctx->currentAnalysis.isPlaying = 0;
             return false;
         }
 
-        // Продвигаем позицию чтения (чанк по 4096 байт)
-        ctx->position += 4096;
-        if (ctx->position > ctx->data.size()) {
-            ctx->position = ctx->data.size();
+        size_t chunkSize = 1024;
+        size_t remaining = ctx->finalPcm.size() - ctx->cursor;
+        size_t count = (std::min)(chunkSize, remaining);
+
+        // Выделяем память и копируем данные по индексам
+        std::vector<float> chunk;
+        chunk.reserve(count);
+
+        for (size_t i = 0; i < count; ++i) {
+            chunk.push_back(ctx->finalPcm[ctx->cursor + i]);
         }
 
-        // Генерируем тестовые значения громкости для визуализатора (позже заменишь на вызовы из AxUdioDek/AxUdioBitrate)
-        float mockVolume = (float)(rand() % 80) / 100.0f + 0.1f;
-        ctx->analysis.rmsVolume = mockVolume;
-        ctx->analysis.peakVolume = std::min(1.0f, mockVolume + 0.15f);
+        // Выполнение анализа
+        ctx->currentAnalysis = AxUdio_bxxitAnalysis::Analyze(chunk, ctx->finalPcm.size());
 
+        // Вывод на аудиокарту
+        ctx->audioCard.SendToAxAudioxx(chunk);
+
+        ctx->cursor += count;
         return true;
-    }
-
-    AXUDIO_API AnalysisData AxUdio_GetAnalysis(void* instance) {
-        if (!instance) return { 0, 0.0f, 0.0f, 0 };
-        return static_cast<AxUdioContext*>(instance)->analysis;
     }
 }
