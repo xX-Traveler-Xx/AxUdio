@@ -6,18 +6,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 
-# Перечисляем все модули проекта:
+# Полный список ваших файлов из обозревателя решений:
 set(SOURCE_FILES
+    AxUdioCore.h
+    AxAudioxx.cpp
+    
+    AxUdioBitrate.cpp
+    AxUdioDek.cpp
+    AxUdioPipeline.cpp
     AxUdioSO.cpp
     AxUdioZxZipl.cpp
-    AxUdioDek.cpp
-    AxUdioBitrate.cpp
-    AxAudioxx.cpp
-    AxUdioPipeline.cpp
 )
 
-# Создаём ЕДИНЫЙ файл библиотеки (.dll на Windows, .so на Android)
 add_library(AxUdioEngine SHARED ${SOURCE_FILES})
+
+target_include_directories(AxUdioEngine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 if(ANDROID)
     find_library(aaudio-lib aaudio)

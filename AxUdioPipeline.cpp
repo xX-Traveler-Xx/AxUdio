@@ -1,17 +1,10 @@
 #include "AxUdioCore.h"
 
-// Подключаем объявления наших классов из соседних файлов
-#include "AxUdioSO.cpp"
-#include "AxUdioZxZipl.cpp"
-#include "AxUdioDek.cpp"
-#include "AxUdioBitrate.cpp"
-#include "AxAudioxx.cpp"
-
 struct AxUdioPipeline {
     AxUdio_SO so;
-    AxUdio_ZxZipl zipper;
+    AxUdio_ZxZipl zipl;
     AxUdio_Dek dek;
-    AxUdio_AxAudioxx audioCard;
+    AxUdio_audioxcard audioCard;
     AxUdio_AnalysisData lastAnalysis;
 };
 
@@ -25,25 +18,17 @@ extern "C" {
         if (!instance || !fileBytes || size == 0) return false;
         auto* pipe = static_cast<AxUdioPipeline*>(instance);
 
-        // ПОРЯДОК ИСПОЛНЕНИЯ:
-        // 1. AxUdio SO
         if (!pipe->so.LoadToRAM(fileBytes, size)) return false;
+        if (!pipe->zipl.DecompressStream(pipe->so.ramBuffer)) return false;
+        if (!pipe->dek.Process44100(pipe->zipl.pcmBuffer, pipe->zipl.sourceSampleRate)) return false;
 
-        // 2. AxUdio ZxZipl
-        if (!pipe->zipper.DecompressToWavStream(pipe->so.ramBuffer)) return false;
-
-        // 3. AxUdio Dek
-        if (!pipe->dek.ResampleTo44100(pipe->zipper.pcmBuffer, pipe->zipper.sourceSampleRate)) return false;
-
-        // 4. AxUdio bxxitAnalysis
         pipe->lastAnalysis = AxUdio_bxxitAnalysis::Analyze(pipe->dek.resampledBuffer, size);
 
-        // 5 & 6. AxUdio audioxcard -> AxUdio AxAudioxx
-        return pipe->audioCard.OutputToAAudioHardware(pipe->dek.resampledBuffer);
+        return pipe->audioCard.SendToAxAudioxx(pipe->dek.resampledBuffer);
     }
 
     AX_EXPORT AxUdio_AnalysisData AxUdio_GetAnalysis(void* instance) {
-        if (!instance) return { 0, 0.0f, 0.0f };
+        if (!instance) return AxUdio_AnalysisData{ 0, 0.0f, 0.0f };
         return static_cast<AxUdioPipeline*>(instance)->lastAnalysis;
     }
 

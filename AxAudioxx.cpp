@@ -1,10 +1,10 @@
 #include "AxUdioCore.h"
 
-class AxUdio_AxAudioxx {
-public:
-    bool OutputToAAudioHardware(const std::vector<float>& finalBuffer) {
-        if (finalBuffer.empty()) return false;
-        // Здесь выполняется вызов API AAudio (AAudioStream_write)
-        return true;
-    }
-};
+bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
+    if (buffer.empty()) return false;
+    return true;
+}
+
+bool AxUdio_audioxcard::SendToAxAudioxx(const std::vector<float>& buffer) {
+    return driver.OutputToHardware(buffer);
+}
