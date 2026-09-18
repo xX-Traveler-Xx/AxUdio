@@ -3,6 +3,7 @@
 bool AxUdio_Dek::Process44100(const std::vector<float>& pcm, int currentRate) {
     if (pcm.empty()) return false;
 
+    // Используем поля класса через this-> или просто имя полей класса
     float ratio = (float)targetRate / (float)currentRate;
     size_t newSize = static_cast<size_t>(pcm.size() * ratio);
     resampledBuffer.resize(newSize);

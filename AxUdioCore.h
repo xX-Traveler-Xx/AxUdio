@@ -3,18 +3,45 @@
 #include <vector>
 #include <cstdint>
 #include <cmath>
-#include <cstring>
+#include <cstdlib>
 
-#if defined(_WIN32)
-#define AX_EXPORT __declspec(dllexport)
+#ifdef AXUDIO_EXPORTS
+#define AXUDIO_API __declspec(dllexport)
 #else
-#define AX_EXPORT __attribute__((visibility("default")))
+#define AXUDIO_API __declspec(dllimport)
 #endif
 
-struct AxUdio_AnalysisData {
+// —труктура дл€ обмена данными с C#
+struct AnalysisData {
     int bitrateKbps;
     float peakVolume;
     float rmsVolume;
+    int isPlaying; // 1 Ч играет, 0 Ч конец трека
+};
+
+// ќбъ€влени€ классов подсистем, используемые в .cpp файлах
+
+class AxUdio_AxAudioxx {
+public:
+    bool OutputToHardware(const std::vector<float>& buffer);
+};
+
+class AxUdio_audioxcard {
+public:
+    AxUdio_AxAudioxx driver;
+    bool SendToAxAudioxx(const std::vector<float>& buffer);
+};
+
+class AxUdio_bxxitAnalysis {
+public:
+    static AnalysisData Analyze(const std::vector<float>& pcm, size_t fileSize);
+};
+
+class AxUdio_Dek {
+public:
+    int targetRate = 44100;
+    std::vector<float> resampledBuffer;
+    bool Process44100(const std::vector<float>& pcm, int currentRate);
 };
 
 class AxUdio_SO {
@@ -26,30 +53,15 @@ public:
 class AxUdio_ZxZipl {
 public:
     std::vector<float> pcmBuffer;
-    int sourceSampleRate = 48000;
     bool DecompressStream(const std::vector<uint8_t>& rawBuffer);
 };
 
-class AxUdio_Dek {
-public:
-    std::vector<float> resampledBuffer;
-    const int targetRate = 44100;
-    bool Process44100(const std::vector<float>& pcm, int currentRate);
-};
+// C-обертка дл€ экспорта в C#
+extern "C" {
+    AXUDIO_API void* AxUdio_Create();
+    AXUDIO_API void AxUdio_Destroy(void* instance);
 
-class AxUdio_bxxitAnalysis {
-public:
-    static AxUdio_AnalysisData Analyze(const std::vector<float>& pcm, size_t fileSize);
-};
-
-class AxUdio_AxAudioxx {
-public:
-    bool OutputToHardware(const std::vector<float>& buffer);
-};
-
-class AxUdio_audioxcard {
-private:
-    AxUdio_AxAudioxx driver;
-public:
-    bool SendToAxAudioxx(const std::vector<float>& buffer);
-};
+    AXUDIO_API bool AxUdio_OpenStream(void* instance, const unsigned char* fileBytes, size_t size);
+    AXUDIO_API bool AxUdio_ReadNextChunk(void* instance);
+    AXUDIO_API AnalysisData AxUdio_GetAnalysis(void* instance);
+}

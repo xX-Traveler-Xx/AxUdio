@@ -1,26 +1,20 @@
-﻿cmake_minimum_required(VERSION 3.14)
-project(AxUdioEngine CXX)
+﻿cmake_minimum_required(VERSION 3.15)
+project(AxUdio CXX)
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-
-# Полный список ваших файлов из обозревателя решений:
-set(SOURCE_FILES
+add_library(AxUdioEngine SHARED
     AxUdioCore.h
-    AxAudioxx.cpp
-    
-    AxUdioBitrate.cpp
-    AxUdioDek.cpp
-    AxUdioPipeline.cpp
     AxUdioSO.cpp
     AxUdioZxZipl.cpp
+    AxUdioDek.cpp
+    AxUdioBitrate.cpp
+    AxUdioPipeline.cpp
+    AxAudioxx.cpp
 )
 
-add_library(AxUdioEngine SHARED ${SOURCE_FILES})
-
-target_include_directories(AxUdioEngine PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+# Вот эта строка обязана быть для DLL на Windows:
+target_compile_definitions(AxUdioEngine PRIVATE AXUDIO_EXPORTS)
 
 if(ANDROID)
     find_library(aaudio-lib aaudio)

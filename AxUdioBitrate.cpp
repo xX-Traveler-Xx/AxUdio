@@ -1,7 +1,7 @@
 #include "AxUdioCore.h"
 
-AxUdio_AnalysisData AxUdio_bxxitAnalysis::Analyze(const std::vector<float>& pcm, size_t fileSize) {
-    AxUdio_AnalysisData result{ 320, 0.0f, 0.0f };
+AnalysisData AxUdio_bxxitAnalysis::Analyze(const std::vector<float>& pcm, size_t fileSize) {
+    AnalysisData result{ 320, 0.0f, 0.0f };
     if (pcm.empty()) return result;
 
     float maxPeak = 0.0f;
