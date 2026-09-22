@@ -1,7 +1,16 @@
+//Важно для компиляции на Linux
+//Когда будете собирать проект на Linux(например, через g++ или CMake), вам нужно будет указать флаг линковки нативной звуковой подсистемы - lasound.Это не скачиваемая из интернета библиотека, она встроена в ядро всех дистрибутивов(Ubuntu, Debian, Arch и т.д.) :
+//    g++ - shared - fPIC AxAudioxx.cpp ... - lasound - o libAxUdioEngine.so
+
+
 #include "AxUdioCore.h"
 #include <algorithm>
 #include <cstring>
+#include <vector>
 
+// =========================================================
+// 1. ANDROID (AAudio)
+// =========================================================
 #if defined(__ANDROID__)
 #include <aaudio/AAudio.h>
 #include <android/log.h>
@@ -26,6 +35,8 @@ static float ApplyProtection(float sample) {
     }
     return sample;
 }
+
+
 
 // Колбэк AAudio
 static aaudio_data_callback_result_t AudioCallback(
@@ -102,6 +113,52 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
     return true;
 }
 
+// =========================================================
+// 2. LINUX (ALSA - Advanced Linux Sound Architecture)
+// =========================================================
+#elif defined(__linux__)
+#include <alsa/asoundlib.h>
+
+bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
+    if (buffer.empty()) return false;
+
+    static snd_pcm_t* pcm_handle = nullptr;
+
+    // Однократная инициализация аудиоустройства Linux (ALSA)
+    if (pcm_handle == nullptr) {
+        if (snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0) {
+            return false;
+        }
+        // Настройка формата: 16-bit, Стерео, 44100 Гц, задержка 50ms
+        snd_pcm_set_params(pcm_handle,
+            SND_PCM_FORMAT_S16_LE,
+            SND_PCM_ACCESS_RW_INTERLEAVED,
+            2,
+            44100,
+            1,
+            50000);
+    }
+
+    // Конвертация float в int16_t (безопасно для всех звуковых карт Linux)
+    std::vector<int16_t> pcm16(buffer.size());
+    for (size_t i = 0; i < buffer.size(); ++i) {
+        pcm16[i] = static_cast<int16_t>(std::clamp(buffer[i], -1.0f, 1.0f) * 32767.0f);
+    }
+
+    // Отправка данных на звуковую карту
+    snd_pcm_sframes_t frames = snd_pcm_writei(pcm_handle, pcm16.data(), buffer.size() / 2);
+
+    // Если буфер опустел (underrun), восстанавливаем поток
+    if (frames < 0) {
+        snd_pcm_recover(pcm_handle, frames, 0);
+    }
+
+    return true;
+}
+
+// =========================================================
+// 3. WINDOWS (WinMM API)
+// =========================================================
 #elif defined(_WIN32)
 #include <windows.h>
 #include <mmsystem.h>
@@ -111,7 +168,12 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
     if (buffer.empty()) return false;
 
     static HWAVEOUT hWaveOut = NULL;
+    static const int NUM_BUFFERS = 3;
+    static WAVEHDR headers[NUM_BUFFERS] = {};
+    static std::vector<int16_t> pcmBuffers[NUM_BUFFERS];
+    static int currentBuffer = 0;
 
+    // Однократная инициализация
     if (hWaveOut == NULL) {
         WAVEFORMATEX wfx = { WAVE_FORMAT_PCM, 2, 44100, 44100 * 4, 4, 16, 0 };
         if (waveOutOpen(&hWaveOut, WAVE_MAPPER, &wfx, 0, 0, CALLBACK_NULL) != MMSYSERR_NOERROR) {
@@ -119,27 +181,38 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
         }
     }
 
-    std::vector<int16_t> pcm16(buffer.size());
-    for (size_t i = 0; i < buffer.size(); ++i) {
-        pcm16[i] = static_cast<int16_t>(std::clamp(buffer[i], -1.0f, 1.0f) * 32767.0f);
-    }
-
-    WAVEHDR header = {};
-    header.lpData = reinterpret_cast<LPSTR>(pcm16.data());
-    header.dwBufferLength = static_cast<DWORD>(pcm16.size() * sizeof(int16_t));
-
-    if (waveOutPrepareHeader(hWaveOut, &header, sizeof(WAVEHDR)) == MMSYSERR_NOERROR) {
-        waveOutWrite(hWaveOut, &header, sizeof(WAVEHDR));
-        while ((header.dwFlags & WHDR_DONE) == 0) {
+    // Ждем, пока освободится конкретный буфер (без общего блокирования потока)
+    if (headers[currentBuffer].dwFlags & WHDR_PREPARED) {
+        while (!(headers[currentBuffer].dwFlags & WHDR_DONE)) {
             Sleep(1);
         }
-        waveOutUnprepareHeader(hWaveOut, &header, sizeof(WAVEHDR));
+        waveOutUnprepareHeader(hWaveOut, &headers[currentBuffer], sizeof(WAVEHDR));
+    }
+
+    // Конвертация float -> int16
+    pcmBuffers[currentBuffer].resize(buffer.size());
+    for (size_t i = 0; i < buffer.size(); ++i) {
+        pcmBuffers[currentBuffer][i] = static_cast<int16_t>(std::clamp(buffer[i], -1.0f, 1.0f) * 32767.0f);
+    }
+
+    WAVEHDR& hdr = headers[currentBuffer];
+    ZeroMemory(&hdr, sizeof(WAVEHDR));
+    hdr.lpData = reinterpret_cast<LPSTR>(pcmBuffers[currentBuffer].data());
+    hdr.dwBufferLength = static_cast<DWORD>(pcmBuffers[currentBuffer].size() * sizeof(int16_t));
+
+    // Отправка в драйвер
+    if (waveOutPrepareHeader(hWaveOut, &hdr, sizeof(WAVEHDR)) == MMSYSERR_NOERROR) {
+        waveOutWrite(hWaveOut, &hdr, sizeof(WAVEHDR));
+        currentBuffer = (currentBuffer + 1) % NUM_BUFFERS; // Переключаем буфер по кольцу
         return true;
     }
     return false;
 }
 #endif
 
+// =========================================================
+// СВЯЗУЮЩЕЕ ЗВЕНО (Вызывается из других частей кода)
+// =========================================================
 bool AxUdio_audioxcard::SendToAxAudioxx(const std::vector<float>& buffer) {
     return driver.OutputToHardware(buffer);
 }
