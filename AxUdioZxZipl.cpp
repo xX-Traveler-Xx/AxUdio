@@ -7,10 +7,9 @@
 #include <mfreadwrite.h>
 #include <shlwapi.h>
 
-// Все необходимые библиотеки Media Foundation для успешной сборки:
 #pragma comment(lib, "mfplat.lib")
 #pragma comment(lib, "mfreadwrite.lib")
-#pragma comment(lib, "mfuuid.lib")     // Исправляет неразрешенные символы MF_MT_* и MFAudioFormat_*
+#pragma comment(lib, "mfuuid.lib")
 #pragma comment(lib, "shlwapi.lib")
 #pragma comment(lib, "uuid.lib")
 
@@ -22,7 +21,7 @@ bool AxUdio_ZxZipl::DecompressStream(const std::vector<uint8_t>& rawBuffer) {
     HRESULT hr = MFStartup(MF_VERSION);
     if (FAILED(hr)) return false;
 
-    // Создание IStream из сырого байтового буфера в RAM
+    // Создание IStream из сырого буфера в ОЗУ
     IStream* pMemStream = SHCreateMemStream(rawBuffer.data(), static_cast<UINT>(rawBuffer.size()));
     if (!pMemStream) {
         MFShutdown();
@@ -45,32 +44,32 @@ bool AxUdio_ZxZipl::DecompressStream(const std::vector<uint8_t>& rawBuffer) {
         return false;
     }
 
-    // 2. Конфигурация декодера: PCM Float 32-bit, 44100 Hz, Stereo
-    IMFMediaType* pPartialType = NULL;
-    hr = MFCreateMediaType(&pPartialType);
+    // 2. Получаем родной формат файла и запрашиваем распаковку в Float PCM
+    IMFMediaType* pNativeType = NULL;
+    hr = pReader->GetNativeMediaType((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, 0, &pNativeType);
     if (FAILED(hr)) {
         pReader->Release();
         MFShutdown();
         return false;
     }
 
-    pPartialType->SetGUID(MF_MT_MAJOR_TYPE, MFMediaType_Audio);
-    pPartialType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_Float);
-    pPartialType->SetUINT32(MF_MT_AUDIO_NUM_CHANNELS, 2);
-    pPartialType->SetUINT32(MF_MT_AUDIO_SAMPLES_PER_SECOND, 44100);
-    pPartialType->SetUINT32(MF_MT_AUDIO_BLOCK_ALIGNMENT, 8);
-    pPartialType->SetUINT32(MF_MT_AUDIO_AVG_BYTES_PER_SECOND, 44100 * 8);
-    pPartialType->SetUINT32(MF_MT_AUDIO_BITS_PER_SAMPLE, 32);
+    IMFMediaType* pUncompressedType = NULL;
+    MFCreateMediaType(&pUncompressedType);
+    pNativeType->CopyAllItems(pUncompressedType);
+    pNativeType->Release();
 
-    hr = pReader->SetCurrentMediaType((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, NULL, pPartialType);
-    pPartialType->Release();
+    // Задаем выходу несжатый 32-битный плавающий формат (Float PCM)
+    pUncompressedType->SetGUID(MF_MT_SUBTYPE, MFAudioFormat_Float);
+
+    hr = pReader->SetCurrentMediaType((DWORD)MF_SOURCE_READER_FIRST_AUDIO_STREAM, NULL, pUncompressedType);
+    pUncompressedType->Release();
     if (FAILED(hr)) {
         pReader->Release();
         MFShutdown();
         return false;
     }
 
-    // 3. Декодирование аудиопотока в float PCM
+    // 3. Распаковка всех кадров в pcmBuffer
     while (true) {
         DWORD flags = 0;
         IMFSample* pSample = NULL;
