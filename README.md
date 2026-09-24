@@ -1,3 +1,6 @@
+---
+---
+———
 # README.md
 
 ---
@@ -69,3 +72,7 @@ The execution order flows sequentially from top to bottom through the following 
 • **AxUdio audio×card** — Prepares the finalized audio buffer and sends it directly to **AxUdio A×Audio××**.
 
 • **AxUdio A×Audio××** — The core audio output backend based on **AAudio (C++)** and the **AAudio××** helper layer. Provides universal audio output across **Android**, **Linux**, and **Windows**.
+
+---
+---
+———
