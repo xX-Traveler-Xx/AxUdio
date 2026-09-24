@@ -8,7 +8,7 @@
 
 **AxUdio** — это специализированная скриптовая система и конвейер обработки аудио (pipeline), предназначенная для загрузки, декодирования, анализа и универсального вывода звука. Это не полноценный аудиодвижок, а единый сквозной процесс, состоящий из взаимосвязанных методов и функций.
 
-> 🤖 **100% кода этой программы и архитектуры было полностью написано ИИ (Искусственным Интеллектом).**
+> 🤖 **100% кода этой программы было полностью написано ИИ (Искусственным Интеллектом).**
 
 ---
 
@@ -44,7 +44,7 @@
 
 **AxUdio** is a specialized scripting system and audio processing pipeline designed for loading, decoding, analyzing, and outputting sound. It is not a full-fledged audio engine, but rather a single unified script consisting of sequential methods and functions.
 
-> 🤖 **100% of the code and architecture in this project was written by AI (Artificial Intelligence).**
+> 🤖 **100% of the code in this project was written by AI (Artificial Intelligence).**
 
 ---
 
