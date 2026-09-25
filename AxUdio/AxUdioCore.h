@@ -17,17 +17,14 @@ struct AnalysisData {
     int bitrateKbps;
     float peakVolume;
     float rmsVolume;
-    int isPlaying; // 1 — играет, 0 — конец трека или пауза
+    int isPlaying; // 1 — играет, 0 — конец трека
 };
 
-// Объявления классов подсистем
+// Объявления классов подсистем, используемые в .cpp файлах
 
 class AxUdio_AxAudioxx {
 public:
     bool OutputToHardware(const std::vector<float>& buffer);
-    void Play();
-    void Pause();
-    void Stop();
 };
 
 class AxUdio_audioxcard {
@@ -60,7 +57,8 @@ public:
     bool DecompressStream(const std::vector<uint8_t>& rawBuffer);
 };
 
-// C-обертка для экспорта в C# / сторонние клиенты
+
+// C-обертка для экспорта в C#
 extern "C" {
     AXUDIO_API void* AxUdio_Create();
     AXUDIO_API void AxUdio_Destroy(void* instance);
@@ -68,9 +66,4 @@ extern "C" {
     AXUDIO_API bool AxUdio_OpenStream(void* instance, const unsigned char* fileBytes, size_t size);
     AXUDIO_API bool AxUdio_ReadNextChunk(void* instance);
     AXUDIO_API AnalysisData AxUdio_GetAnalysis(void* instance);
-
-    // Новые C-API функции управления воспроизведением
-    AXUDIO_API void AxUdio_Play(void* instance);
-    AXUDIO_API void AxUdio_Pause(void* instance);
-    AXUDIO_API void AxUdio_Stop(void* instance);
 }

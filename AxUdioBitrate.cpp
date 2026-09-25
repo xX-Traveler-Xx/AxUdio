@@ -1,23 +1,45 @@
 #include "AxUdioCore.h"
+#include <algorithm>
+#include <cmath>
 
+// Реализация метода анализа сигнала
 AnalysisData AxUdio_bxxitAnalysis::Analyze(const std::vector<float>& pcm, size_t fileSize) {
-    AnalysisData result{ 320, 0.0f, 0.0f, 1 };
+    AnalysisData data{};
+
     if (pcm.empty()) {
-        result.isPlaying = 0;
-        return result;
+        data.bitrateKbps = 0;
+        data.peakVolume = 0.0f;
+        data.rmsVolume = 0.0f;
+        data.isPlaying = 0;
+        return data;
     }
 
-    float maxPeak = 0.0f;
-    double sumSq = 0.0;
+    float maxVal = 0.0f;
+    float sumSquare = 0.0f;
 
-    for (float s : pcm) {
-        float absS = std::abs(s);
-        if (absS > maxPeak) maxPeak = absS;
-        sumSq += s * s;
+    for (float sample : pcm) {
+        float absSample = std::fabs(sample);
+        if (absSample > maxVal) {
+            maxVal = absSample;
+        }
+        sumSquare += sample * sample;
     }
 
-    result.peakVolume = maxPeak;
-    result.rmsVolume = static_cast<float>(std::sqrt(sumSq / pcm.size()));
-    result.isPlaying = 1;
-    return result;
+    data.peakVolume = maxVal;
+    data.rmsVolume = std::sqrt(sumSquare / static_cast<float>(pcm.size()));
+
+    // Примерная оценка битрейта на основе размера и длительности
+    if (fileSize > 0) {
+        data.bitrateKbps = static_cast<int>((fileSize * 8) / 1000);
+    }
+    else {
+        data.bitrateKbps = 320;
+    }
+
+    data.isPlaying = 1;
+    return data;
 }
+
+// ВАЖНО: Удалите из этого файла все экспортные функции:
+// AxUdio_Create, AxUdio_Destroy, AxUdio_GetAnalysis, AxUdio_OpenStream, AxUdio_ReadNextChunk.
+// Они должны находиться ТОЛЬКО в AxUdioPipeline.cpp.

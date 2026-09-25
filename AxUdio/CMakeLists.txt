@@ -1,12 +1,27 @@
-﻿# CMakeList.txt: проект CMake для AxUdio; включите исходный код и определения,
-# укажите здесь логику для конкретного проекта.
-#
+﻿cmake_minimum_required(VERSION 3.15)
+project(AxUdio CXX)
 
-# Добавьте источник в исполняемый файл этого проекта.
-add_executable (AxUdio "AxUdio.cpp" "AxUdio.h")
+set(CMAKE_CXX_STANDARD 17)
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET AxUdio PROPERTY CXX_STANDARD 20)
+add_library(AxUdioEngine SHARED
+    AxUdioCore.h
+    AxUdioSO.cpp
+    AxUdioZxZipl.cpp
+    AxUdioDek.cpp
+    AxUdioBitrate.cpp
+    AxUdioPipeline.cpp
+    AxAudioxx.cpp
+ "AxUdioDashboard.h" "AxUdioHttpServer.cpp")
+
+# Вот эта строка обязана быть для DLL на Windows:
+target_compile_definitions(AxUdioEngine PRIVATE AXUDIO_EXPORTS)
+
+if(ANDROID)
+    find_library(aaudio-lib aaudio)
+    find_library(log-lib log)
+    target_link_libraries(AxUdioEngine ${aaudio-lib} ${log-lib})
 endif()
 
-# TODO: Добавьте тесты и целевые объекты, если это необходимо.
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()

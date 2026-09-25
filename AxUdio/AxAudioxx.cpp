@@ -2,16 +2,11 @@
 //Когда будете собирать проект на Linux(например, через g++ или CMake), вам нужно будет указать флаг линковки нативной звуковой подсистемы - lasound.Это не скачиваемая из интернета библиотека, она встроена в ядро всех дистрибутивов(Ubuntu, Debian, Arch и т.д.) :
 //    g++ - shared - fPIC AxAudioxx.cpp ... - lasound - o libAxUdioEngine.so
 
+
 #include "AxUdioCore.h"
 #include <algorithm>
 #include <cstring>
 #include <vector>
-#include <atomic> // Для безопасного управления флагами из разных потоков
-
-// =========================================================
-// ГЛОБАЛЬНОЕ СОСТОЯНИЕ (Управление Паузой/Плеем)
-// =========================================================
-static std::atomic<bool> g_isPlaying{ true };
 
 // =========================================================
 // 1. ANDROID (AAudio)
@@ -19,7 +14,6 @@ static std::atomic<bool> g_isPlaying{ true };
 #if defined(__ANDROID__)
 #include <aaudio/AAudio.h>
 #include <android/log.h>
-#include <mutex>
 
 #define LOG_TAG "AxUdioEngine"
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -28,7 +22,6 @@ static AAudioStream* g_audioStream = nullptr;
 static std::vector<float> g_ringBuffer;
 static size_t g_readIndex = 0;
 static bool g_protectionEnabled = true;
-static std::mutex g_bufferMutex;
 
 // Лимитер защиты
 static float ApplyProtection(float sample) {
@@ -43,6 +36,8 @@ static float ApplyProtection(float sample) {
     return sample;
 }
 
+
+
 // Колбэк AAudio
 static aaudio_data_callback_result_t AudioCallback(
     AAudioStream* stream, void* userData,
@@ -50,18 +45,11 @@ static aaudio_data_callback_result_t AudioCallback(
 
     float* outputBuffer = static_cast<float*>(audioData);
 
-    if (!g_isPlaying) {
-        std::memset(outputBuffer, 0, numFrames * 2 * sizeof(float));
-        return AAUDIO_CALLBACK_RESULT_CONTINUE;
-    }
-
-    std::lock_guard<std::mutex> lock(g_bufferMutex);
-
     for (int i = 0; i < numFrames; ++i) {
         float sampleLeft = 0.0f;
         float sampleRight = 0.0f;
 
-        if (g_readIndex + 1 < g_ringBuffer.size()) {
+        if (!g_ringBuffer.empty() && g_readIndex + 1 < g_ringBuffer.size()) {
             sampleLeft = g_ringBuffer[g_readIndex++];
             sampleRight = g_ringBuffer[g_readIndex++];
         }
@@ -70,16 +58,16 @@ static aaudio_data_callback_result_t AudioCallback(
         *outputBuffer++ = ApplyProtection(sampleRight);
     }
 
+    // Очистка памяти кольцевого буфера
     if (g_readIndex > 384000) {
-        size_t remaining = g_ringBuffer.size() - g_readIndex;
-        if (remaining > 0) {
-            std::memmove(g_ringBuffer.data(), g_ringBuffer.data() + g_readIndex, remaining * sizeof(float));
-            g_ringBuffer.resize(remaining);
+        if (g_readIndex >= g_ringBuffer.size()) {
+            g_ringBuffer.clear();
+            g_readIndex = 0;
         }
         else {
-            g_ringBuffer.clear();
+            g_ringBuffer.erase(g_ringBuffer.begin(), g_ringBuffer.begin() + g_readIndex);
+            g_readIndex = 0;
         }
-        g_readIndex = 0;
     }
 
     return AAUDIO_CALLBACK_RESULT_CONTINUE;
@@ -87,8 +75,8 @@ static aaudio_data_callback_result_t AudioCallback(
 
 bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
     if (buffer.empty()) return false;
-    if (!g_isPlaying) return true;
 
+    // Инициализация потока AAudio
     if (g_audioStream == nullptr) {
         AAudioStreamBuilder* builder = nullptr;
         if (AAudio_createStreamBuilder(&builder) != AAUDIO_OK) return false;
@@ -101,7 +89,7 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
 
         aaudio_result_t result = AAudioStreamBuilder_openStream(builder, &g_audioStream);
         if (result == AAUDIO_OK && g_audioStream != nullptr) {
-            if (g_isPlaying) AAudioStream_requestStart(g_audioStream);
+            AAudioStream_requestStart(g_audioStream);
         }
         else {
             LOGE("Не удалось открыть AAudio поток");
@@ -111,38 +99,18 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
         AAudioStreamBuilder_delete(builder);
     }
 
-    std::lock_guard<std::mutex> lock(g_bufferMutex);
+    // Сброс прочитанных данных при заполнении
     if (g_readIndex >= g_ringBuffer.size() && !g_ringBuffer.empty()) {
         g_ringBuffer.clear();
         g_readIndex = 0;
     }
+
+    // Добавление новых сэмплов в кольцевой буфер
     size_t oldSize = g_ringBuffer.size();
     g_ringBuffer.resize(oldSize + buffer.size());
     std::memcpy(&g_ringBuffer[oldSize], buffer.data(), buffer.size() * sizeof(float));
 
     return true;
-}
-
-void AxUdio_AxAudioxx::Play() {
-    g_isPlaying = true;
-    if (g_audioStream) AAudioStream_requestStart(g_audioStream);
-}
-
-void AxUdio_AxAudioxx::Pause() {
-    g_isPlaying = false;
-    if (g_audioStream) AAudioStream_requestPause(g_audioStream);
-}
-
-void AxUdio_AxAudioxx::Stop() {
-    g_isPlaying = false;
-    if (g_audioStream) {
-        AAudioStream_requestStop(g_audioStream);
-        AAudioStream_close(g_audioStream);
-        g_audioStream = nullptr;
-    }
-    std::lock_guard<std::mutex> lock(g_bufferMutex);
-    g_ringBuffer.clear();
-    g_readIndex = 0;
 }
 
 // =========================================================
@@ -151,16 +119,17 @@ void AxUdio_AxAudioxx::Stop() {
 #elif defined(__linux__)
 #include <alsa/asoundlib.h>
 
-static snd_pcm_t* pcm_handle = nullptr;
-
 bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
     if (buffer.empty()) return false;
-    if (!g_isPlaying) return true;
 
+    static snd_pcm_t* pcm_handle = nullptr;
+
+    // Однократная инициализация аудиоустройства Linux (ALSA)
     if (pcm_handle == nullptr) {
         if (snd_pcm_open(&pcm_handle, "default", SND_PCM_STREAM_PLAYBACK, 0) < 0) {
             return false;
         }
+        // Настройка формата: 16-bit, Стерео, 44100 Гц, задержка 50ms
         snd_pcm_set_params(pcm_handle,
             SND_PCM_FORMAT_S16_LE,
             SND_PCM_ACCESS_RW_INTERLEAVED,
@@ -170,37 +139,21 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
             50000);
     }
 
+    // Конвертация float в int16_t (безопасно для всех звуковых карт Linux)
     std::vector<int16_t> pcm16(buffer.size());
     for (size_t i = 0; i < buffer.size(); ++i) {
         pcm16[i] = static_cast<int16_t>(std::clamp(buffer[i], -1.0f, 1.0f) * 32767.0f);
     }
 
+    // Отправка данных на звуковую карту
     snd_pcm_sframes_t frames = snd_pcm_writei(pcm_handle, pcm16.data(), buffer.size() / 2);
 
+    // Если буфер опустел (underrun), восстанавливаем поток
     if (frames < 0) {
         snd_pcm_recover(pcm_handle, frames, 0);
     }
 
     return true;
-}
-
-void AxUdio_AxAudioxx::Play() {
-    g_isPlaying = true;
-    if (pcm_handle) snd_pcm_pause(pcm_handle, 0);
-}
-
-void AxUdio_AxAudioxx::Pause() {
-    g_isPlaying = false;
-    if (pcm_handle) snd_pcm_pause(pcm_handle, 1);
-}
-
-void AxUdio_AxAudioxx::Stop() {
-    g_isPlaying = false;
-    if (pcm_handle) {
-        snd_pcm_drop(pcm_handle);
-        snd_pcm_close(pcm_handle);
-        pcm_handle = nullptr;
-    }
 }
 
 // =========================================================
@@ -211,17 +164,16 @@ void AxUdio_AxAudioxx::Stop() {
 #include <mmsystem.h>
 #pragma comment(lib, "winmm.lib")
 
-static HWAVEOUT hWaveOut = NULL;
-
 bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
     if (buffer.empty()) return false;
-    if (!g_isPlaying) return true;
 
+    static HWAVEOUT hWaveOut = NULL;
     static const int NUM_BUFFERS = 3;
     static WAVEHDR headers[NUM_BUFFERS] = {};
     static std::vector<int16_t> pcmBuffers[NUM_BUFFERS];
     static int currentBuffer = 0;
 
+    // Однократная инициализация
     if (hWaveOut == NULL) {
         WAVEFORMATEX wfx = { WAVE_FORMAT_PCM, 2, 44100, 44100 * 4, 4, 16, 0 };
         if (waveOutOpen(&hWaveOut, WAVE_MAPPER, &wfx, 0, 0, CALLBACK_NULL) != MMSYSERR_NOERROR) {
@@ -229,14 +181,15 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
         }
     }
 
+    // Ждем, пока освободится конкретный буфер (без общего блокирования потока)
     if (headers[currentBuffer].dwFlags & WHDR_PREPARED) {
         while (!(headers[currentBuffer].dwFlags & WHDR_DONE)) {
-            if (!g_isPlaying) return true;
             Sleep(1);
         }
         waveOutUnprepareHeader(hWaveOut, &headers[currentBuffer], sizeof(WAVEHDR));
     }
 
+    // Конвертация float -> int16
     pcmBuffers[currentBuffer].resize(buffer.size());
     for (size_t i = 0; i < buffer.size(); ++i) {
         pcmBuffers[currentBuffer][i] = static_cast<int16_t>(std::clamp(buffer[i], -1.0f, 1.0f) * 32767.0f);
@@ -247,36 +200,18 @@ bool AxUdio_AxAudioxx::OutputToHardware(const std::vector<float>& buffer) {
     hdr.lpData = reinterpret_cast<LPSTR>(pcmBuffers[currentBuffer].data());
     hdr.dwBufferLength = static_cast<DWORD>(pcmBuffers[currentBuffer].size() * sizeof(int16_t));
 
+    // Отправка в драйвер
     if (waveOutPrepareHeader(hWaveOut, &hdr, sizeof(WAVEHDR)) == MMSYSERR_NOERROR) {
         waveOutWrite(hWaveOut, &hdr, sizeof(WAVEHDR));
-        currentBuffer = (currentBuffer + 1) % NUM_BUFFERS;
+        currentBuffer = (currentBuffer + 1) % NUM_BUFFERS; // Переключаем буфер по кольцу
         return true;
     }
     return false;
 }
-
-void AxUdio_AxAudioxx::Play() {
-    g_isPlaying = true;
-    if (hWaveOut) waveOutRestart(hWaveOut);
-}
-
-void AxUdio_AxAudioxx::Pause() {
-    g_isPlaying = false;
-    if (hWaveOut) waveOutPause(hWaveOut);
-}
-
-void AxUdio_AxAudioxx::Stop() {
-    g_isPlaying = false;
-    if (hWaveOut) {
-        waveOutReset(hWaveOut);
-        waveOutClose(hWaveOut);
-        hWaveOut = NULL;
-    }
-}
 #endif
 
 // =========================================================
-// СВЯЗУЮЩЕЕ ЗВЕНО
+// СВЯЗУЮЩЕЕ ЗВЕНО (Вызывается из других частей кода)
 // =========================================================
 bool AxUdio_audioxcard::SendToAxAudioxx(const std::vector<float>& buffer) {
     return driver.OutputToHardware(buffer);
