@@ -24,22 +24,37 @@ typedef int socket_t;
 #define closesocket close
 #endif
 
+// Безопасный кроссплатформенный вывод Unicode в консоль
+static void PrintConsole(const std::string& utf8_text) {
+#if defined(_WIN32)
+    HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (hOut != INVALID_HANDLE_VALUE) {
+        // Конвертируем UTF-8 в WideChar (UTF-16)
+        int wlen = MultiByteToWideChar(CP_UTF8, 0, utf8_text.c_str(), -1, NULL, 0);
+        if (wlen > 0) {
+            std::wstring wstr(wlen, 0);
+            MultiByteToWideChar(CP_UTF8, 0, utf8_text.c_str(), -1, &wstr[0], wlen);
+            DWORD written = 0;
+            WriteConsoleW(hOut, wstr.c_str(), static_cast<DWORD>(wstr.length() - 1), &written, NULL);
+            return;
+        }
+    }
+#endif
+    // Для Linux / macOS или fallback
+    std::cout << utf8_text;
+}
+
 // Кроссплатформенная функция автоматического открытия системного браузера
 static void OpenInBrowser(const std::string& url) {
 #if defined(_WIN32)
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
-    // Открывает URL через Shell API без всплывающего окна cmd
     ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
 #elif defined(__APPLE__)
     std::string command = "open " + url;
     std::system(command.c_str());
 #elif defined(__ANDROID__)
-    // В Termux / Android Linux-окружениях
     std::string command = "termux-open-url " + url;
     std::system(command.c_str());
 #else
-    // Для Linux (Ubuntu, Debian, Fedora и др.)
     std::string command = "xdg-open " + url + " > /dev/null 2>&1 &";
     std::system(command.c_str());
 #endif
@@ -54,16 +69,12 @@ private:
 public:
     void Start(int port = 8080) {
 #if defined(_WIN32)
-        // Установка кодировки UTF-8 для консоли Windows
-        SetConsoleOutputCP(CP_UTF8);
-        SetConsoleCP(CP_UTF8);
-
         WSADATA wsaData;
         WSAStartup(MAKEWORD(2, 2), &wsaData);
 #endif
         serverFd = socket(AF_INET, SOCK_STREAM, 0);
         if (serverFd == INVALID_SOCKET) {
-            std::cout << "[AxUdio Server] Ошибка создания сокета!\n";
+            PrintConsole("[AxUdio Server] Ошибка создания сокета!\n");
             return;
         }
 
@@ -76,19 +87,23 @@ public:
         address.sin_port = htons(port);
 
         if (bind(serverFd, (sockaddr*)&address, sizeof(address)) < 0) {
-            std::cout << "[AxUdio Server] Ошибка bind (порт " << port << " занят)!\n";
+            PrintConsole("[AxUdio Server] Ошибка bind (порт " + std::to_string(port) + " занят)!\n");
             closesocket(serverFd);
             return;
         }
 
         if (listen(serverFd, 10) < 0) {
-            std::cout << "[AxUdio Server] Ошибка listen!\n";
+            PrintConsole("[AxUdio Server] Ошибка listen!\n");
             closesocket(serverFd);
             return;
         }
 
         isRunning = true;
-        std::cout << "[AxUdio Server] Сервер запущен! Откройте браузер по адресу: http://localhost:" << port << "\n";
+
+        // Красивый вывод сообщения с гарантированной кодировкой UTF-8
+        std::string serverMsg = "[AxUdio Server] Сервер запущен! Откройте браузер: http://localhost:" + std::to_string(port) + "\n";
+        PrintConsole(serverMsg);
+
         serverThread = std::thread(&AxUdioWebServer::ListenLoop, this);
     }
 
@@ -172,7 +187,6 @@ static AxUdioWebServer g_webServer;
 void StartAxUdioDashboard(int port) {
     g_webServer.Start(port);
 
-    // Автоматическое открытие дашборда в браузере по умолчанию
     std::string url = "http://localhost:" + std::to_string(port);
     OpenInBrowser(url);
 }

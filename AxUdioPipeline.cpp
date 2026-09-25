@@ -97,4 +97,25 @@ extern "C" {
         ctx->cursor += count;
         return true;
     }
+    AXUDIO_API void AxUdio_Play(void* instance) {
+        if (!instance) return;
+        auto ctx = static_cast<AxUdioContext*>(instance);
+        ctx->audioCard.driver.Play(); // Или ваша логика возобновления
+        ctx->currentAnalysis.isPlaying = 1;
+    }
+
+    AXUDIO_API void AxUdio_Pause(void* instance) {
+        if (!instance) return;
+        auto ctx = static_cast<AxUdioContext*>(instance);
+        ctx->audioCard.driver.Pause(); // Или ваша логика паузы
+        ctx->currentAnalysis.isPlaying = 0;
+    }
+
+    AXUDIO_API void AxUdio_Stop(void* instance) {
+        if (!instance) return;
+        auto ctx = static_cast<AxUdioContext*>(instance);
+        ctx->audioCard.driver.Stop(); // Или ваша логика остановки
+        ctx->cursor = 0;
+        ctx->currentAnalysis.isPlaying = 0;
+    }
 }
