@@ -1,4 +1,4 @@
-#include "AxUdioCore.h"
+Ôªø#include "AxUdioCore.h"
 #include "AxUdioDashboard.h"
 #include <thread>
 #include <atomic>
@@ -24,20 +24,22 @@ typedef int socket_t;
 #define closesocket close
 #endif
 
-//  ÓÒÒÔÎ‡ÚÙÓÏÂÌÌ‡ˇ ÙÛÌÍˆËˇ ‡‚ÚÓÏ‡ÚË˜ÂÒÍÓ„Ó ÓÚÍ˚ÚËˇ ÒËÒÚÂÏÌÓ„Ó ·‡ÛÁÂ‡
+// –ö—Ä–æ—Å—Å–ø–ª–∞—Ç—Ñ–æ—Ä–º–µ–Ω–Ω–∞—è —Ñ—É–Ω–∫—Ü–∏—è –∞–≤—Ç–æ–º–∞—Ç–∏—á–µ—Å–∫–æ–≥–æ –æ—Ç–∫—Ä—ã—Ç–∏—è —Å–∏—Å—Ç–µ–º–Ω–æ–≥–æ –±—Ä–∞—É–∑–µ—Ä–∞
 static void OpenInBrowser(const std::string& url) {
 #if defined(_WIN32)
-    // ŒÚÍ˚‚‡ÂÚ URL ˜ÂÂÁ Shell API ·ÂÁ ‚ÒÔÎ˚‚‡˛˘Â„Ó ÓÍÌ‡ cmd
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    // –û—Ç–∫—Ä—ã–≤–∞–µ—Ç URL —á–µ—Ä–µ–∑ Shell API –±–µ–∑ –≤—Å–ø–ª—ã–≤–∞—é—â–µ–≥–æ –æ–∫–Ω–∞ cmd
     ShellExecuteA(NULL, "open", url.c_str(), NULL, NULL, SW_SHOWNORMAL);
 #elif defined(__APPLE__)
     std::string command = "open " + url;
     std::system(command.c_str());
 #elif defined(__ANDROID__)
-    // ¬ Termux / Android Linux-ÓÍÛÊÂÌËˇı
+    // –í Termux / Android Linux-–æ–∫—Ä—É–∂–µ–Ω–∏—è—Ö
     std::string command = "termux-open-url " + url;
     std::system(command.c_str());
 #else
-    // ƒÎˇ Linux (Ubuntu, Debian, Fedora Ë ‰.)
+    // –î–ª—è Linux (Ubuntu, Debian, Fedora –∏ –¥—Ä.)
     std::string command = "xdg-open " + url + " > /dev/null 2>&1 &";
     std::system(command.c_str());
 #endif
@@ -52,12 +54,16 @@ private:
 public:
     void Start(int port = 8080) {
 #if defined(_WIN32)
+        // –£—Å—Ç–∞–Ω–æ–≤–∫–∞ –∫–æ–¥–∏—Ä–æ–≤–∫–∏ UTF-8 –¥–ª—è –∫–æ–Ω—Å–æ–ª–∏ Windows
+        SetConsoleOutputCP(CP_UTF8);
+        SetConsoleCP(CP_UTF8);
+
         WSADATA wsaData;
         WSAStartup(MAKEWORD(2, 2), &wsaData);
 #endif
         serverFd = socket(AF_INET, SOCK_STREAM, 0);
         if (serverFd == INVALID_SOCKET) {
-            std::cout << "[AxUdio Server] Œ¯Ë·Í‡ ÒÓÁ‰‡ÌËˇ ÒÓÍÂÚ‡!\n";
+            std::cout << "[AxUdio Server] –û—à–∏–±–∫–∞ —Å–æ–∑–¥–∞–Ω–∏—è —Å–æ–∫–µ—Ç–∞!\n";
             return;
         }
 
@@ -70,19 +76,19 @@ public:
         address.sin_port = htons(port);
 
         if (bind(serverFd, (sockaddr*)&address, sizeof(address)) < 0) {
-            std::cout << "[AxUdio Server] Œ¯Ë·Í‡ bind (ÔÓÚ " << port << " Á‡ÌˇÚ)!\n";
+            std::cout << "[AxUdio Server] –û—à–∏–±–∫–∞ bind (–ø–æ—Ä—Ç " << port << " –∑–∞–Ω—è—Ç)!\n";
             closesocket(serverFd);
             return;
         }
 
         if (listen(serverFd, 10) < 0) {
-            std::cout << "[AxUdio Server] Œ¯Ë·Í‡ listen!\n";
+            std::cout << "[AxUdio Server] –û—à–∏–±–∫–∞ listen!\n";
             closesocket(serverFd);
             return;
         }
 
         isRunning = true;
-        std::cout << "[AxUdio Server] —Â‚Â Á‡ÔÛ˘ÂÌ! ŒÚÍÓÈÚÂ ·‡ÛÁÂ ÔÓ ‡‰ÂÒÛ: http://localhost:" << port << "\n";
+        std::cout << "[AxUdio Server] –°–µ—Ä–≤–µ—Ä –∑–∞–ø—É—â–µ–Ω! –û—Ç–∫—Ä–æ–π—Ç–µ –±—Ä–∞—É–∑–µ—Ä –ø–æ –∞–¥—Ä–µ—Å—É: http://localhost:" << port << "\n";
         serverThread = std::thread(&AxUdioWebServer::ListenLoop, this);
     }
 
@@ -104,17 +110,17 @@ public:
                 std::string request(buffer);
                 std::ostringstream response;
 
-                // 1. ŒÚ‰‡˜‡ JSON-ÏÂÚËÍË ‰Îˇ ƒ‡¯·Ó‰‡
+                // 1. –û—Ç–¥–∞—á–∞ JSON-–º–µ—Ç—Ä–∏–∫–∏ –¥–ª—è –î–∞—à–±–æ—Ä–¥–∞
                 if (request.find("GET /api/stats") != std::string::npos) {
                     std::string json = "{\"rms\":0.35,\"peak\":0.72,\"bufferSize\":1024,\"driver\":\"DirectSound/ALSA\"}";
                     response << "HTTP/1.1 200 OK\r\n"
-                        << "Content-Type: application/json\r\n"
+                        << "Content-Type: application/json; charset=utf-8\r\n"
                         << "Access-Control-Allow-Origin: *\r\n"
                         << "Content-Length: " << json.size() << "\r\n"
                         << "Connection: close\r\n\r\n"
                         << json;
                 }
-                // 2. ŒÚ‰‡˜‡ „Î‡‚ÌÓÈ HTML ÒÚ‡ÌËˆ˚
+                // 2. –û—Ç–¥–∞—á–∞ –≥–ª–∞–≤–Ω–æ–π HTML —Å—Ç—Ä–∞–Ω–∏—Ü—ã
                 else {
                     response << "HTTP/1.1 200 OK\r\n"
                         << "Content-Type: text/html; charset=utf-8\r\n"
@@ -166,7 +172,7 @@ static AxUdioWebServer g_webServer;
 void StartAxUdioDashboard(int port) {
     g_webServer.Start(port);
 
-    // ¿‚ÚÓÏ‡ÚË˜ÂÒÍÓÂ ÓÚÍ˚ÚËÂ ‰‡¯·Ó‰‡ ‚ ·‡ÛÁÂÂ ÔÓ ÛÏÓÎ˜‡ÌË˛
+    // –ê–≤—Ç–æ–º–∞—Ç–∏—á–µ—Å–∫–æ–µ –æ—Ç–∫—Ä—ã—Ç–∏–µ –¥–∞—à–±–æ—Ä–¥–∞ –≤ –±—Ä–∞—É–∑–µ—Ä–µ –ø–æ —É–º–æ–ª—á–∞–Ω–∏—é
     std::string url = "http://localhost:" + std::to_string(port);
     OpenInBrowser(url);
 }

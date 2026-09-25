@@ -4,10 +4,11 @@
 #include <string_view>
 
 // Вшиваем весь HTML-код страницы внутрь бинарника библиотеки
-inline constexpr std::string_view g_AxUdioDashboardHTML = R"html(
+inline constexpr std::string_view g_AxUdioDashboardHTML = (const char*)u8R"html(
 <!DOCTYPE html>
 <html lang="ru">
 <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AxUdio Audio Engine Control Panel</title>
@@ -25,7 +26,7 @@ inline constexpr std::string_view g_AxUdioDashboardHTML = R"html(
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
             padding: 20px;
             display: flex;

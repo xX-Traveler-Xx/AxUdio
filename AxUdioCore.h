@@ -1,10 +1,10 @@
-#pragma once
+п»ї#pragma once
 
 #include <vector>
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
-#include <algorithm> // Обязательно для std::clamp и std::min/std::max
+#include <algorithm> // РћР±СЏР·Р°С‚РµР»СЊРЅРѕ РґР»СЏ std::clamp Рё std::min/std::max
 
 #ifdef AXUDIO_EXPORTS
 #define AXUDIO_API __declspec(dllexport)
@@ -12,15 +12,15 @@
 #define AXUDIO_API __declspec(dllimport)
 #endif
 
-// Структура для обмена данными с C#
+// РЎС‚СЂСѓРєС‚СѓСЂР° РґР»СЏ РѕР±РјРµРЅР° РґР°РЅРЅС‹РјРё СЃ C#
 struct AnalysisData {
     int bitrateKbps;
     float peakVolume;
     float rmsVolume;
-    int isPlaying; // 1 — играет, 0 — конец трека
+    int isPlaying; // 1 вЂ” РёРіСЂР°РµС‚, 0 вЂ” РєРѕРЅРµС† С‚СЂРµРєР°
 };
 
-// Объявления классов подсистем, используемые в .cpp файлах
+// РћР±СЉСЏРІР»РµРЅРёСЏ РєР»Р°СЃСЃРѕРІ РїРѕРґСЃРёСЃС‚РµРј, РёСЃРїРѕР»СЊР·СѓРµРјС‹Рµ РІ .cpp С„Р°Р№Р»Р°С…
 
 class AxUdio_AxAudioxx {
 public:
@@ -57,7 +57,8 @@ public:
     bool DecompressStream(const std::vector<uint8_t>& rawBuffer);
 };
 
-// C-обертка для экспорта в C#
+
+// C-РѕР±РµСЂС‚РєР° РґР»СЏ СЌРєСЃРїРѕСЂС‚Р° РІ C#
 extern "C" {
     AXUDIO_API void* AxUdio_Create();
     AXUDIO_API void AxUdio_Destroy(void* instance);

@@ -21,3 +21,7 @@ if(ANDROID)
     find_library(log-lib log)
     target_link_libraries(AxUdioEngine ${aaudio-lib} ${log-lib})
 endif()
+
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()

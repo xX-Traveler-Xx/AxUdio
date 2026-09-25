@@ -1,4 +1,7 @@
-#include "AxUdioCore.h"
+п»ї#include "AxUdioCore.h"
+
+// РћР±СЉСЏРІР»СЏРµРј С„СѓРЅРєС†РёСЋ Р·Р°РїСѓСЃРєР° РІРµР±-СЃРµСЂРІРµСЂР° РёР· AxUdioHttpServer.cpp
+void StartAxUdioDashboard(int port = 8080);
 
 struct AxUdioContext {
     AxUdio_SO so;
@@ -14,19 +17,21 @@ struct AxUdioContext {
 
 extern "C" {
 
-    // 1. Создание контекста движка
+    // 1. РЎРѕР·РґР°РЅРёРµ РєРѕРЅС‚РµРєСЃС‚Р° РґРІРёР¶РєР° Рё Р·Р°РїСѓСЃРє HTTP-СЃРµСЂРІРµСЂР° СЃ РґР°С€Р±РѕСЂРґРѕРј
     AXUDIO_API void* AxUdio_Create() {
+        // РђРІС‚РѕРјР°С‚РёС‡РµСЃРєРё Р·Р°РїСѓСЃРєР°РµС‚ HTTP-СЃРµСЂРІРµСЂ Рё РѕС‚РєСЂС‹РІР°РµС‚ Р±СЂР°СѓР·РµСЂ РїСЂРё РёРЅРёС†РёР°Р»РёР·Р°С†РёРё
+        StartAxUdioDashboard(8080);
         return new (std::nothrow) AxUdioContext();
     }
 
-    // 2. Уничтожение контекста и очистка памяти
+    // 2. РЈРЅРёС‡С‚РѕР¶РµРЅРёРµ РєРѕРЅС‚РµРєСЃС‚Р° Рё РѕС‡РёСЃС‚РєР° РїР°РјСЏС‚Рё
     AXUDIO_API void AxUdio_Destroy(void* instance) {
         if (instance) {
             delete static_cast<AxUdioContext*>(instance);
         }
     }
 
-    // 3. Получение текущих метрик анализа
+    // 3. РџРѕР»СѓС‡РµРЅРёРµ С‚РµРєСѓС‰РёС… РјРµС‚СЂРёРє Р°РЅР°Р»РёР·Р°
     AXUDIO_API AnalysisData AxUdio_GetAnalysis(void* instance) {
         if (!instance) {
             return AnalysisData{ 0, 0.0f, 0.0f, 0 };
@@ -35,24 +40,24 @@ extern "C" {
         return ctx->currentAnalysis;
     }
 
-    // 4. Открытие аудиопотока
+    // 4. РћС‚РєСЂС‹С‚РёРµ Р°СѓРґРёРѕРїРѕС‚РѕРєР°
     AXUDIO_API bool AxUdio_OpenStream(void* instance, const unsigned char* fileBytes, size_t size) {
         if (!instance || !fileBytes || size == 0) return false;
         auto ctx = static_cast<AxUdioContext*>(instance);
 
-        // 1. RAM Загрузка
+        // 1. RAM Р—Р°РіСЂСѓР·РєР°
         if (!ctx->so.LoadToRAM(fileBytes, size)) return false;
 
-        // 2. Распаковка
+        // 2. Р Р°СЃРїР°РєРѕРІРєР°
         if (!ctx->zipl.DecompressStream(ctx->so.ramBuffer)) return false;
 
-        // 3. Дискретизация 44100 Hz
+        // 3. Р”РёСЃРєСЂРµС‚РёР·Р°С†РёСЏ 44100 Hz
         if (!ctx->dek.Process44100(ctx->zipl.pcmBuffer, 44100)) return false;
 
         ctx->finalPcm = ctx->dek.resampledBuffer;
         ctx->cursor = 0;
 
-        // Если вектор после обработки оказался пустым — возвращаем false
+        // Р•СЃР»Рё РІРµРєС‚РѕСЂ РїРѕСЃР»Рµ РѕР±СЂР°Р±РѕС‚РєРё РѕРєР°Р·Р°Р»СЃСЏ РїСѓСЃС‚С‹Рј вЂ” РІРѕР·РІСЂР°С‰Р°РµРј false
         if (ctx->finalPcm.empty()) {
             ctx->currentAnalysis.isPlaying = 0;
             return false;
@@ -75,7 +80,7 @@ extern "C" {
         size_t remaining = ctx->finalPcm.size() - ctx->cursor;
         size_t count = (std::min)(chunkSize, remaining);
 
-        // Выделяем память и копируем данные по индексам
+        // Р’С‹РґРµР»СЏРµРј РїР°РјСЏС‚СЊ Рё РєРѕРїРёСЂСѓРµРј РґР°РЅРЅС‹Рµ РїРѕ РёРЅРґРµРєСЃР°Рј
         std::vector<float> chunk;
         chunk.reserve(count);
 
@@ -83,10 +88,10 @@ extern "C" {
             chunk.push_back(ctx->finalPcm[ctx->cursor + i]);
         }
 
-        // Выполнение анализа
+        // Р’С‹РїРѕР»РЅРµРЅРёРµ Р°РЅР°Р»РёР·Р°
         ctx->currentAnalysis = AxUdio_bxxitAnalysis::Analyze(chunk, ctx->finalPcm.size());
 
-        // Вывод на аудиокарту
+        // Р’С‹РІРѕРґ РЅР° Р°СѓРґРёРѕРєР°СЂС‚Сѓ
         ctx->audioCard.SendToAxAudioxx(chunk);
 
         ctx->cursor += count;
