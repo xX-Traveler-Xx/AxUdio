@@ -11,7 +11,7 @@ add_library(AxUdioEngine SHARED
     AxUdioBitrate.cpp
     AxUdioPipeline.cpp
     AxAudioxx.cpp
-)
+ "AxUdioDashboard.h" "AxUdioHttpServer.cpp")
 
 # Вот эта строка обязана быть для DLL на Windows:
 target_compile_definitions(AxUdioEngine PRIVATE AXUDIO_EXPORTS)
