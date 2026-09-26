@@ -3,7 +3,8 @@ AxUdio DSP — универсальный музыкальный движок (�
 
 А наименования компонентов оставлены так, как они несли смысл для автора и круто выглядели.
 
-![Uploading AxUdio.png…]()
+<img width="960" height="540" alt="AxUdio" src="https://github.com/user-attachments/assets/89f9ea5c-0f98-400b-a325-f13ee933277d" />
+
 
 --
 ---
