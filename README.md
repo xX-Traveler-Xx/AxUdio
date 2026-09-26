@@ -12,7 +12,8 @@ AxUdio DSP — универсальный музыкальный движок (�
 [🇷🇺 Русский](#-axudio-ru) | [🇬🇧 English](#-axudio-en)
 
 ---
-''' Панель лог и управления'''
+''' Панель лог и управления
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -407,6 +408,8 @@ AxUdio DSP — универсальный музыкальный движок (�
 
 </body>
 </html>
+'''
+
 ---
 ## 🇷🇺 AxUdio <a name="axudio-ru"></a>
 
