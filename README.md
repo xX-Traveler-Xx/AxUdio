@@ -1,4 +1,4 @@
-> Не факт что проект может быть довелен до ума мной
+
 ---
 AxUdio DSP — универсальный музыкальный движок («AxUdio», AxUdio DSP или просто AxUdio). Это тестовый проект с использованием ИИ. Использовать не рекомендую, а проект могу закрыть в любой момент. Этот проект полностью написан с помощью ИИ. Однако этот проект мне нравится, и я буду пытаться довести его до ума — до рабочего состояния.
 --
@@ -69,3 +69,6 @@ The execution order flows sequentially from top to bottom through the following 
 The original concept and system architecture of this project belong to the repository author.
 
 This software is provided "AS IS", without warranty of any kind, express or implied. In no event shall the author be held liable for any claim, damages, or other liability arising from, out of, or in connection with the software or the use or other dealings in the software.
+
+> Не факт что проект может быть довелен до ума мной
+> Но я попробую. Может получить зделать что типо движка свого для музыку
