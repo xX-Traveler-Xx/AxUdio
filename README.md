@@ -72,3 +72,41 @@ This software is provided "AS IS", without warranty of any kind, express or impl
 
 > Не факт что проект может быть довелен до ума мной
 > Но я попробую. Может получить зделать что типо движка свого для музыку
+
+---
+
+Техническая документация: AxUdio Audio EngineВерсия: 1.0.9Язык реализации: C++ (Core), C-compatible API для внешних интеграций (например, C#)Поддерживаемые платформы: Windows (WinMM / Media Foundation), Android (AAudio), Linux (ALSA)1. Архитектура библиотекиБиблиотека построена по модульному принципу. Каждый компонент отвечает за изолированный этап конвейера обработки аудиоданных (пайплайна):AxUdio_SO — загрузка исходного аудиофайла (в виде байтов) в оперативную память (RAM).AxUdio_ZxZipl — распаковка сжатого потока (в Windows используется Microsoft Media Foundation с конвертацией в 32-bit Float PCM).AxUdio_Dek — модуль ресемплинга (передискретизации) аудиосигнала до целевой частоты дискретизации 44100 Гц.AxUdio_bxxitAnalysis — анализ аудиопотока "на лету" (расчет пиковой громкости (Peak), среднеквадратичного значения (RMS) и битрейта).AxUdio_audioxcard / AxUdio_AxAudioxx — низкоуровневый вывод звука на аппаратные аудиоподсистемы целевой платформы.Встроенный Web-Dashboard (AxUdioDashboard.h) — мониторинг состояния аудиосистемы через HTTP/WebSocket интерфейс (порт 8080).2. Экспортируемый C-APIДля взаимодействия с управляемыми средами (например, C# / P/Invoke) или сторонними языками используется плоский C-интерфейс, объявленный с модификатором extern "C".   Управление жизненным циклом экземпляраvoid* AxUdio_Create() — создает новый экземпляр движка. Автоматически запускает встроенный веб-дашборд на порту 8080.void AxUdio_Destroy(void* instance) — уничтожает экземпляр движка и освобождает занятые ресурсы.Работа со стримомbool AxUdio_OpenStream(void* instance, const unsigned char* fileBytes, size_t size) — загружает массив байт аудиофайла в память, декодирует его и приводит к формату 44100 Гц.bool AxUdio_ReadNextChunk(void* instance) — считывает следующий чанк данных (по умолчанию 1024 сэмпла), выполняет аудиоанализ, отправляет данные на звуковую карту и сдвигает внутренний курсор воспроизведения.Управление воспроизведениемvoid AxUdio_Play(void* instance) — возобновляет или запускает воспроизведение.void AxUdio_Pause(void* instance) — ставит воспроизведение на паузу.void AxUdio_Stop(void* instance) — останавливает воспроизведение и сбрасывает курсор в начало.Телеметрия и анализAnalysisData AxUdio_GetAnalysis(void* instance) — возвращает текущие метрики воспроизведения (AnalysisData).Структура данных анализа (AnalysisData):C++struct AnalysisData {
+    int bitrateKbps;    // Битрейт (например, 320 кбит/с)
+    float peakVolume;   // Пиковая громкость (0.0 — 1.0)
+    float rmsVolume;    // RMS громкость (0.0 — 1.0)
+    int isPlaying;      // Статус: 1 — играет, 0 — пауза / конец трека
+};
+3. Особенности компиляции под различные ОСLinuxПри сборке проекта под Linux (с использованием g++ или CMake) требуется обязательно подключать нативную звуковую подсистему ALSA с помощью флага -lasound (библиотека встроена в ядро большинства дистрибутивов, таких как Ubuntu, Debian, Arch и др.):   Bashg++ -shared -fPIC AxAudioxx.cpp AxUdioBitrate.cpp AxUdioDek.cpp AxUdioPipeline.cpp AxUdioSO.cpp AxUdioZxZipl.cpp -lasound -o libAxUdioEngine.so
+WindowsТребуется линковка со стандартными системными библиотеками Windows Multimedia API (winmm.lib) и Media Foundation (mfplat.lib, mfreadwrite.lib, mfuuid.lib, shlwapi.lib, uuid.lib).   Макрос AXUDIO_EXPORTS управляет экспортом символов DLL (__declspec(dllexport) / __declspec(dllimport)).   AndroidИспользуется нативный низкоуровневый аудиоапи AAudio с поддержкой режима AAUDIO_PERFORMANCE_MODE_LOW_LATENCY.   Реализован встроенный лимитер защиты (ApplyProtection), предотвращающий цифровое клиппирование звука при превышении порога 0.7f.   4. Пример интеграции (C++ / Псевдокод)C++#include "AxUdioCore.h"
+#include <vector>
+
+// 1. Инициализация движка
+void* engine = AxUdio_Create();
+
+// 2. Загрузка файла (здесь предполагается, что fileBytes — это байты аудиофайла, например, MP3)
+// const unsigned char* fileBytes = ...;
+// size_t fileSize = ...;
+
+if (AxUdio_OpenStream(engine, fileBytes, fileSize)) {
+    AxUdio_Play(engine);
+
+    // 3. Цикл чтения и обработки чанков (например, в аудиоплеере)
+    while (true) {
+        AnalysisData data = AxUdio_GetAnalysis(engine);
+        if (data.isPlaying == 0) break;
+
+        // Читаем следующий чанк и выводим на звуковую карту
+        bool success = AxUdio_ReadNextChunk(engine);
+        if (!success) break;
+    }
+
+    AxUdio_Stop(engine);
+}
+
+// 4. Очистка ресурсов
+AxUdio_Destroy(engine);
